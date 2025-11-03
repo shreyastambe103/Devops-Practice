@@ -68,8 +68,10 @@ pipeline {
                     echo "🔍 Verifying deployment..."
                     sh """
                     sleep 3
-                    echo "Checking if app is reachable at http://localhost:${HOST_PORT}"
-                    curl -f http://localhost:${HOST_PORT} || (echo '❌ Application not responding!' && exit 1)
+                    app_ip=\$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${CONTAINER_NAME})
+                    echo "App is running at IP: \$app_ip"
+                    echo "Checking if app is reachable at http://\$app_ip:${CONTAINER_PORT}"
+                    curl -f http://\$app_ip:${CONTAINER_PORT} || (echo '❌ Application not responding!' && exit 1)
                     """
                 }
             }
