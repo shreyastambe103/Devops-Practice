@@ -1,65 +1,69 @@
 pipeline {
-  agent any
+    agent any
 
-  environment {
-    IMAGE_NAME = "hello-devops"
-    IMAGE_TAG = "${env.BUILD_NUMBER}"
-    CONTAINER_NAME = "hello-devops-${env.BUILD_NUMBER}"
-    APP_PORT = "3000"
-    HOST_PORT = "8000" // host port to map for verification
-  }
+    environment {
+        IMAGE_NAME = "hello-devops"
+        IMAGE_TAG = "${BUILD_NUMBER}"
+        CONTAINER_NAME = "${IMAGE_NAME}-${BUILD_NUMBER}"
+        APP_PORT = "8000"
+        INTERNAL_PORT = "3000"
+    }
 
-  stages {
-    stage('Checkout') {
+    stages {
+
+        stage('Checkout Code') {
             steps {
-                git branch: 'main', url: 'https://github.com/shreyastambe103/Devops-Practice.git'
+                echo "📦 Checking out repository..."
+                checkout scm
             }
         }
 
-    stage('Build Docker Image') {
-      steps {
-        script {
-          sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    echo "🐳 Building Docker image..."
+                    sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+                }
+            }
         }
-      }
+
+        stage('Stop & Remove Old Container') {
+            steps {
+                script {
+                    echo "🧹 Cleaning up old containers..."
+                    sh "docker stop ${CONTAINER_NAME} || true"
+                    sh "docker rm ${CONTAINER_NAME} || true"
+                }
+            }
+        }
+
+        stage('Run Container') {
+            steps {
+                script {
+                    echo "🚀 Running new container..."
+                    sh "docker run -d --name ${CONTAINER_NAME} -p ${APP_PORT}:${INTERNAL_PORT} ${IMAGE_NAME}:${IMAGE_TAG}"
+                    sh "sleep 2"
+                    sh "docker ps --filter name=${CONTAINER_NAME} --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'"
+                }
+            }
+        }
+
+        stage('Test Application') {
+            steps {
+                script {
+                    echo "🔍 Testing container response..."
+                    sh "curl -f http://localhost:${APP_PORT} || (echo '❌ Application not responding' && exit 1)"
+                }
+            }
+        }
     }
 
-    stage('Run Container') {
-      steps {
-        script {
-          // remove any old container with same name (safer in repeated runs)
-          sh """
-            if docker ps -a --format '{{.Names}}' | grep -q ${CONTAINER_NAME}; then
-              docker rm -f ${CONTAINER_NAME} || true
-            fi
-            docker run -d --name ${CONTAINER_NAME} -p ${HOST_PORT}:${APP_PORT} ${IMAGE_NAME}:${IMAGE_TAG}
-            sleep 2
-            echo "Container started. Listing containers:"
-            docker ps --filter "name=${CONTAINER_NAME}" --format "table {{.Names}}\\t{{.Status}}\\t{{.Ports}}"
-          """
+    post {
+        always {
+            echo "✅ Pipeline completed at ${new Date()}"
         }
-      }
-    }
-
-    stage('Smoke Test') {
-      steps {
-        script {
-            echo "Running smoke test..."
-            def containerIP = sh(script: "docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' hello-devops-5", returnStdout: true).trim()
-            echo "Container IP: ${containerIP}"
-            sh "curl -sSf http://${containerIP}:3000"
+        failure {
+            echo "❌ Build failed! Check logs for details."
         }
-      }
     }
-  }
-
-  post {
-    success {
-      echo "Pipeline completed SUCCESS"
-    }
-    failure {
-      echo "Pipeline FAILED — check logs"
-      // keep the container for debugging; optionally remove it here if desired
-    }
-  }
 }
