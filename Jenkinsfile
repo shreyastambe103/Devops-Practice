@@ -11,10 +11,10 @@ pipeline {
 
   stages {
     stage('Checkout') {
-      steps {
-        checkout scm
-      }
-    }
+            steps {
+                git branch: 'main', url: 'https://github.com/shreyastambe103/Devops-Practice.git'
+            }
+        }
 
     stage('Build Docker Image') {
       steps {
