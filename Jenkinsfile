@@ -3,17 +3,16 @@ pipeline {
 
     environment {
         IMAGE_NAME = "hello-devops"
-        IMAGE_TAG = "${BUILD_NUMBER}"
-        CONTAINER_NAME = "${IMAGE_NAME}-${BUILD_NUMBER}"
-        APP_PORT = "8000"
-        INTERNAL_PORT = "3000"
+        IMAGE_TAG = "8"
+        CONTAINER_NAME = "${IMAGE_NAME}-${IMAGE_TAG}"
+        HOST_PORT = "8000"
+        CONTAINER_PORT = "3000"
     }
 
     stages {
-
-        stage('Checkout Code') {
+        stage('Clone Repository') {
             steps {
-                echo "📦 Checking out repository..."
+                echo "📦 Cloning repository..."
                 checkout scm
             }
         }
@@ -22,7 +21,9 @@ pipeline {
             steps {
                 script {
                     echo "🐳 Building Docker image..."
-                    sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+                    sh """
+                    docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
+                    """
                 }
             }
         }
@@ -30,44 +31,57 @@ pipeline {
         stage('Stop & Remove Old Container') {
             steps {
                 script {
-                    echo "🧹 Cleaning up old containers..."
-                    sh "docker stop ${CONTAINER_NAME} || true"
-                    sh "docker rm ${CONTAINER_NAME} || true"
+                    echo "🧹 Cleaning up old containers using port ${HOST_PORT}..."
+                    sh """
+                    # Find any container exposing port 8000
+                    old_container=\$(docker ps -q --filter "publish=${HOST_PORT}")
+                    if [ ! -z "\$old_container" ]; then
+                      echo "⚠️ Stopping container using port ${HOST_PORT}..."
+                      docker stop \$old_container || true
+                      docker rm \$old_container || true
+                    fi
+
+                    # Also remove container with same name if it exists
+                    docker rm -f ${CONTAINER_NAME} || true
+                    """
                 }
             }
         }
 
-        stage('Run Container') {
+        stage('Run New Container') {
             steps {
                 script {
                     echo "🚀 Running new container..."
-                    sh "docker run -d --name ${CONTAINER_NAME} -p ${APP_PORT}:${INTERNAL_PORT} ${IMAGE_NAME}:${IMAGE_TAG}"
-                    sh "sleep 2"
-                    sh "docker ps --filter name=${CONTAINER_NAME} --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'"
+                    sh """
+                    docker run -d \
+                      --name ${CONTAINER_NAME} \
+                      -p ${HOST_PORT}:${CONTAINER_PORT} \
+                      ${IMAGE_NAME}:${IMAGE_TAG}
+                    """
                 }
             }
         }
 
-        stage('Test Application') {
+        stage('Verify Deployment') {
             steps {
                 script {
-                    echo "🔍 Testing container response..."
-                    // Get container IP dynamically
-                    def containerIP = sh(script: "docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${CONTAINER_NAME}", returnStdout: true).trim()
-                    echo "🌐 Container IP: ${containerIP}"
-                    sh "curl -f http://${containerIP}:${INTERNAL_PORT} || (echo '❌ Application not responding' && exit 1)"
-                    }
+                    echo "🔍 Verifying deployment..."
+                    sh """
+                    sleep 3
+                    echo "Checking if app is reachable at http://localhost:${HOST_PORT}"
+                    curl -f http://localhost:${HOST_PORT} || (echo '❌ Application not responding!' && exit 1)
+                    """
                 }
+            }
         }
-
     }
 
     post {
-        always {
-            echo "✅ Pipeline completed at ${new Date()}"
+        success {
+            echo "✅ Deployment successful! Visit http://localhost:${HOST_PORT}"
         }
         failure {
-            echo "❌ Build failed! Check logs for details."
+            echo "❌ Deployment failed. Check logs above."
         }
     }
 }
