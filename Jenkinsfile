@@ -20,6 +20,8 @@ pipeline {
       steps {
         script {
           sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+          sh 'export PATH=$PATH:/Users/shreyastambe/.rd/bin/docker && docker version'
+          sh "export PATH=$PATH:/Users/shreyastambe/.rd/bin && docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
         }
       }
     }
