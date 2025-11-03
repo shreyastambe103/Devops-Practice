@@ -45,7 +45,7 @@ pipeline {
       steps {
         script {
             echo "Running smoke test..."
-            def containerIP = sh(script: "docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' hello-devops-3", returnStdout: true).trim()
+            def containerIP = sh(script: "docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' hello-devops-5", returnStdout: true).trim()
             echo "Container IP: ${containerIP}"
             sh "curl -sSf http://${containerIP}:3000"
         }
