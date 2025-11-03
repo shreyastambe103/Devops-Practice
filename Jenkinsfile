@@ -44,11 +44,10 @@ pipeline {
     stage('Smoke Test') {
       steps {
         script {
-          // curl the running app to ensure it responds
-          sh """
-            echo "Curling http://localhost:${HOST_PORT} ..."
-            curl -sSf http://localhost:${HOST_PORT} || (docker logs ${CONTAINER_NAME} && false)
-          """
+            echo "Running smoke test..."
+            def containerIP = sh(script: "docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' hello-devops-3", returnStdout: true).trim()
+            echo "Container IP: ${containerIP}"
+            sh "curl -sSf http://${containerIP}:3000"
         }
       }
     }
