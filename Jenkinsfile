@@ -52,10 +52,14 @@ pipeline {
             steps {
                 script {
                     echo "🔍 Testing container response..."
-                    sh "curl -f http://localhost:${APP_PORT} || (echo '❌ Application not responding' && exit 1)"
+                    // Get container IP dynamically
+                    def containerIP = sh(script: "docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${CONTAINER_NAME}", returnStdout: true).trim()
+                    echo "🌐 Container IP: ${containerIP}"
+                    sh "curl -f http://${containerIP}:${INTERNAL_PORT} || (echo '❌ Application not responding' && exit 1)"
+                    }
                 }
-            }
         }
+
     }
 
     post {
